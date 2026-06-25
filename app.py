@@ -3,14 +3,23 @@ import re
 from urllib.parse import urlparse
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-import requests  # New library for internet API calls
-import base64    # Needed to format the URL for VirusTotal
+import requests
+import base64
 
-# --- VIRUSTOTAL API CONFIGURATION ---
-# 🚨 PASTE YOUR VIRUSTOTAL API KEY BETWEEN THE QUOTES BELOW 🚨
-VT_API_KEY = st.secrets["VT_API_KEY"]
+st.markdown(
+    """
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    """,
+    unsafe_allow_html=True
+)
 
-# --- 1. THE MACHINE LEARNING ENGINE ---
+try:
+    VT_API_KEY = st.secrets["VT_API_KEY"]
+except Exception:
+    VT_API_KEY = None
+
 @st.cache_resource
 def train_ai_model():
     data = {
@@ -30,38 +39,33 @@ def train_ai_model():
 
 ai_classifier = train_ai_model()
 
-# --- 2. THE THREAT INTELLIGENCE ENGINE (VirusTotal API) ---
 def check_virustotal(url):
-    """ Queries VirusTotal API v3 for global engine detection results """
     if not VT_API_KEY or VT_API_KEY == "YOUR_API_KEY_HERE":
-        return "Not Configured"
+        return "Not Configured in Secrets"
         
     try:
-        # VirusTotal v3 requires URLs to be base64 encoded without padding
         url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
         api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
         
         headers = {
             "accept": "application/json",
-            "x-apikey": VT_API_KEY  
+            "x-apikey": VT_API_KEY
         }
         
         response = requests.get(api_url, headers=headers)
         
         if response.status_code == 200:
             result = response.json()
-            # Extract the raw detection statistics
             stats = result['data']['attributes']['last_analysis_stats']
             malicious_count = stats.get('malicious', 0)
             return malicious_count
         elif response.status_code == 404:
-            return "Unscanned (New URL)"
+            return "Unscanned (New URL Target)"
         else:
-            return "API Error"
+            return f"API Error (Status Code: {response.status_code})"
     except Exception:
-        return "Connection Error"
+        return "Network Connection Timeout"
 
-# --- 3. FEATURE EXTRACTION ---
 def extract_features(url):
     ip_pattern = r'(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])'
     features = {
@@ -74,30 +78,28 @@ def extract_features(url):
     features['has_keyword'] = 1 if any(word in url.lower() for word in keywords) else 0
     return features
 
-# --- 4. STREAMLIT FRONTEND INTERFACE ---
-st.set_page_config(page_title="PhishGuard AI Pro", page_icon="⚡", layout="centered")
+st.set_page_config(page_title="PhishGuard Pro", page_icon="🛡️", layout="centered")
 
-st.title("⚡ PhishGuard Pro")
+st.title("🛡️ PhishGuard Pro")
 st.subheader("Hybrid AI & Global Threat Intel Platform")
-st.write("This professional dashboard combines local Machine Learning models with live global reputation data via the VirusTotal API network layer.")
+st.write("An enterprise-grade utility combining localized Machine Learning predictions with decentralized threat landscape feeds.")
 
-# User Input
-user_url = st.text_input("Enter URL to scan:", placeholder="https://example.com")
+user_url = st.text_input("Enter URL vector to scan:", placeholder="https://secure-banking-update.net/login")
 
 if st.button("Launch Advanced Hybrid Scan"):
     if user_url:
-        if not user_url.startswith(("http://", "https://")):
-            url_to_analyze = "http://" + user_url
+        cleaned_url = user_url.replace("—", "-").replace("’", "'").replace("”", '"').strip()
+        
+        if not cleaned_url.startswith(("http://", "https://")):
+            url_to_analyze = "http://" + cleaned_url
         else:
-            url_to_analyze = user_url
+            url_to_analyze = cleaned_url
             
-        # Create UI side-by-side split layout columns
         col1, col2 = st.columns(2)
         
-        # COLUMN 1: Run Local Machine Learning Analysis
         with col1:
             st.markdown("### 🤖 Local AI Verdict")
-            with st.spinner("Calculating ML tensor matrices..."):
+            with st.spinner("Processing ML vectors..."):
                 features_dict = extract_features(url_to_analyze)
                 input_data = pd.DataFrame([features_dict])
                 probabilities = ai_classifier.predict_proba(input_data)[0]
@@ -110,23 +112,21 @@ if st.button("Launch Advanced Hybrid Scan"):
             else:
                 st.success(f"✅ STRUCTURALLY CLEAN\n\nAI Risk Score: {phishing_probability:.1f}%")
                 
-        # COLUMN 2: Run Global Threat Intel Check via VirusTotal
         with col2:
             st.markdown("### 🌐 Global Threat Intel")
-            with st.spinner("Querying VirusTotal global node..."):
+            with st.spinner("Pinging VirusTotal server node..."):
                 vt_result = check_virustotal(url_to_analyze)
                 
             if isinstance(vt_result, int):
                 if vt_result > 0:
-                    st.error(f"🚨 POSITIVE DETECTIONS\n\n{vt_result} security engines flagged this link as malicious!")
+                    st.error(f"🚨 POSITIVE DETECTIONS\n\n{vt_result} engines flagged this URL as malicious!")
                 else:
-                    st.success("✅ GLOBAL CLEARANCE\n\n0/70+ industry engines flagged this URL.")
+                    st.success("✅ GLOBAL CLEARANCE\n\n0/70+ security engines flagged this URL.")
             else:
-                st.info(f"ℹ️ STATUS INFO\n\n{vt_result}\n\n(Verify your API Key script configuration)")
+                st.info(f"ℹ️ STATUS INFO\n\n{vt_result}\n\n(Verify your Streamlit Secrets Panel configuration)")
                 
-        # Lower Expander Report
         with st.expander("View Integrated Forensic Log"):
-            st.write("Structural properties analyzed:")
+            st.write("Extracted mathematical feature mappings passed into Random Forest matrix:")
             st.json(features_dict)
     else:
-        st.info("Please provide a target URL vector to run the security scanners.")
+        st.info("Please provide a target domain path to run the evaluation metrics.")

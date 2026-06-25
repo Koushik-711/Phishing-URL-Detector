@@ -1,123 +1,208 @@
-# 🛡️ PhishGuard AI
+# 🛡️ PhishGuard Pro
 
-## Enterprise-Grade URL Security Analyzer
+## Hybrid AI & Global Threat Intelligence Platform for Phishing URL Detection
 
-PhishGuard AI is a lightweight phishing URL detection tool built using **Python** and **Streamlit**. It analyzes URLs in real-time and identifies common phishing indicators using rule-based security checks.
+PhishGuard Pro is an intelligent phishing URL detection system that combines **Machine Learning** with **real-time global threat intelligence** to identify malicious websites. The application analyzes URL characteristics using a trained **Random Forest Classifier** and verifies URLs against **VirusTotal's** threat intelligence database.
 
-The application provides an easy-to-use web interface where users can submit suspicious URLs and receive an instant security assessment along with a detailed forensic report.
-
----
-
-## 🚀 Features
-
-* Real-time URL security analysis
-* Detects URLs using raw IP addresses
-* Identifies abnormally long URLs
-* Detects usage of "@" symbols commonly found in phishing attacks
-* Flags excessive subdomains in domain names
-* Detects common phishing-related keywords
-* Provides risk scoring system
-* Interactive and user-friendly Streamlit dashboard
-* Detailed forensic report for every scan
+Built with **Python** and **Streamlit**, the project provides an interactive web dashboard capable of performing enterprise-style phishing analysis in real time.
 
 ---
 
-## 🏗️ Project Architecture
+# 📌 Project Overview
 
-### Frontend
+Traditional phishing detection systems often rely on either machine learning or online reputation services. PhishGuard Pro integrates both approaches to improve detection accuracy.
 
-* Streamlit
+The system performs:
 
-### Backend
-
-* Python
-* Regular Expressions (Regex)
-* URL Parsing (`urllib.parse`)
+* Local Machine Learning prediction
+* Real-time VirusTotal reputation lookup
+* URL feature extraction
+* Risk probability estimation
+* Interactive forensic reporting
 
 ---
 
-## 📂 Project Structure
+# 🚀 Features
 
-```bash
-PhishGuard-AI/
+## 🤖 Artificial Intelligence
+
+* Random Forest Classifier
+* Probability-based phishing prediction
+* Cached ML model for faster execution
+* Feature vector generation
+
+---
+
+## 🌐 Global Threat Intelligence
+
+* VirusTotal API Integration
+* Detects previously reported malicious URLs
+* Shows number of antivirus engines that flagged the URL
+* Handles unknown or unscanned URLs gracefully
+
+---
+
+## 🔍 URL Feature Analysis
+
+The application extracts multiple security-related URL features.
+
+| Feature              | Description                                 |
+| -------------------- | ------------------------------------------- |
+| Uses IP Address      | Detects raw IP addresses instead of domains |
+| Long URL             | Flags URLs longer than 75 characters        |
+| @ Symbol Detection   | Detects hidden redirection attempts         |
+| Excessive Subdomains | Detects suspicious domain structures        |
+| Phishing Keywords    | Searches for phishing-related words         |
+
+---
+
+## 📊 AI Risk Classification
+
+The trained Random Forest predicts the phishing probability.
+
+| AI Probability | Risk Level               |
+| -------------- | ------------------------ |
+| 0–29%          | ✅ Structurally Clean     |
+| 30–69%         | ⚠️ Suspicious Indicators |
+| 70–100%        | 🚨 Critical Risk         |
+
+---
+
+# 🏗️ System Architecture
+
+```
+User Input
+      │
+      ▼
+URL Normalization
+      │
+      ▼
+Feature Extraction
+      │
+      ├──────────────► Random Forest Model
+      │                    │
+      │                    ▼
+      │            AI Risk Prediction
+      │
+      ▼
+VirusTotal API
+      │
+      ▼
+Threat Intelligence
+      │
+      ▼
+Combined Security Report
+```
+
+---
+
+# 🧠 Machine Learning Model
+
+Algorithm Used:
+
+* Random Forest Classifier
+
+Training Features:
+
+* IP Address
+* URL Length
+* @ Symbol
+* Number of Subdomains
+* Phishing Keywords
+
+Target Classes:
+
+* Legitimate URL
+* Phishing URL
+
+The model outputs a phishing probability score using:
+
+```python
+predict_proba()
+```
+
+---
+
+# 🌐 VirusTotal Integration
+
+The application queries VirusTotal using its REST API.
+
+Information Retrieved:
+
+* Number of malicious detections
+* Reputation status
+* Previously scanned URLs
+* Unknown URL detection
+
+If the URL has never been scanned, the application returns:
+
+```
+Unscanned (New URL Target)
+```
+
+---
+
+# 🔒 Security Headers
+
+The application includes browser security headers such as:
+
+* X-Content-Type-Options
+* X-Frame-Options
+* Content-Security-Policy
+
+These headers improve browser-side security.
+
+---
+
+# 📂 Project Structure
+
+```
+PhishGuard-Pro/
 │
 ├── app.py
-├── README.md
 ├── requirements.txt
+├── README.md
+├── .streamlit/
+│      └── secrets.toml
+│
 └── assets/
 ```
 
 ---
 
-## ⚙️ Detection Parameters
+# ⚙️ Installation
 
-The system evaluates URLs using the following security indicators:
-
-| Security Check              | Description                                                  |
-| --------------------------- | ------------------------------------------------------------ |
-| Uses IP Address             | Detects URLs that use an IP address instead of a domain name |
-| Abnormally Long URL         | Flags URLs longer than 75 characters                         |
-| Contains @ Symbol           | Detects the use of "@" symbols in URLs                       |
-| Excessive Domain Subdomains | Detects domains containing more than two dots                |
-| Contains Phishing Keywords  | Searches for common phishing-related keywords                |
-
-### Phishing Keywords Checked
-
-```python
-[
-    'secure',
-    'account',
-    'webscr',
-    'login',
-    'ebayisapi',
-    'signin',
-    'banking',
-    'confirm'
-]
-```
-
----
-
-## 🔍 Risk Assessment Logic
-
-| Risk Score | Status           |
-| ---------- | ---------------- |
-| 0          | ✅ CLEAN          |
-| 1          | ⚠️ WARNING       |
-| 2 or More  | 🚨 CRITICAL RISK |
-
----
-
-## 🛠️ Installation
-
-### Step 1: Clone Repository
+## Clone Repository
 
 ```bash
-git clone https://github.com/your-username/PhishGuard-AI.git
-cd PhishGuard-AI
+git clone https://github.com/yourusername/PhishGuard-Pro.git
+
+cd PhishGuard-Pro
 ```
 
-### Step 2: Create Virtual Environment
+---
+
+## Create Virtual Environment
+
+### Windows
 
 ```bash
 python -m venv venv
-```
 
-### Step 3: Activate Virtual Environment
-
-#### Windows
-
-```bash
 venv\Scripts\activate
 ```
 
-#### Linux/Mac
+### Linux / macOS
 
 ```bash
+python3 -m venv venv
+
 source venv/bin/activate
 ```
 
-### Step 4: Install Dependencies
+---
+
+## Install Dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -125,118 +210,192 @@ pip install -r requirements.txt
 
 ---
 
-## 📦 Requirements
+# 📦 Required Libraries
 
-Create a `requirements.txt` file containing:
-
-```text
+```
 streamlit
+pandas
+scikit-learn
+requests
+```
+
+Install manually:
+
+```bash
+pip install streamlit pandas scikit-learn requests
 ```
 
 ---
 
-## ▶️ Running the Application
+# 🔑 VirusTotal API Setup
+
+Create the following file:
+
+```
+.streamlit/secrets.toml
+```
+
+Add your VirusTotal API Key:
+
+```toml
+VT_API_KEY="YOUR_API_KEY_HERE"
+```
+
+You can obtain a free API key by creating an account on the VirusTotal website.
+
+---
+
+# ▶️ Run the Application
 
 ```bash
 streamlit run app.py
 ```
 
-After launching, Streamlit will provide a local URL similar to:
+The application will start at:
 
-```text
+```
 http://localhost:8501
 ```
 
-Open the link in your browser.
+---
+
+# 📸 Application Workflow
+
+```
+Enter URL
+      │
+      ▼
+Normalize URL
+      │
+      ▼
+Extract Features
+      │
+      ├────────────► AI Prediction
+      │
+      ├────────────► VirusTotal Lookup
+      │
+      ▼
+Display Results
+      │
+      ▼
+Forensic Report
+```
 
 ---
 
-## 🧪 Example Test URLs
+# 🧪 Example URLs
 
-### Legitimate URL
+## Legitimate URL
 
-```text
+```
 https://www.google.com
 ```
 
-Expected Result:
+Expected:
 
-```text
-CLEAN
+* AI Risk: Low
+* VirusTotal: Clean
+
+---
+
+## Suspicious URL
+
+```
+http://192.168.10.20/login/account/confirm
 ```
 
-### Suspicious URL
+Expected:
 
-```text
-http://192.168.1.1/login/account/confirm
-```
-
-Expected Result:
-
-```text
-CRITICAL RISK
-```
+* High AI Probability
+* Multiple Security Flags
 
 ---
 
-## 📸 Application Workflow
+# 📈 Technologies Used
 
-1. User enters a URL.
-2. System normalizes the URL.
-3. Security features are extracted.
-4. Risk score is calculated.
-5. Risk level is displayed.
-6. Detailed forensic report is generated.
-
----
-
-## 🔒 Limitations
-
-* Uses rule-based detection only.
-* Does not perform machine learning classification.
-* Does not check website reputation databases.
-* Does not analyze webpage content.
-* Does not verify SSL certificates.
+* Python
+* Streamlit
+* Pandas
+* Scikit-learn
+* Random Forest Classifier
+* Requests
+* Regular Expressions (Regex)
+* URL Parsing
+* VirusTotal REST API
 
 ---
 
-## 🚀 Future Enhancements
+# 🎯 Learning Outcomes
 
-* Machine Learning-based phishing detection.
-* URL reputation lookup using APIs.
-* WHOIS domain age analysis.
-* SSL certificate verification.
-* VirusTotal integration.
-* Domain blacklisting support.
-* Threat intelligence feed integration.
-* Email phishing detection module.
+This project demonstrates knowledge of:
 
----
-
-## 🎯 Learning Outcomes
-
-Through this project, users can learn:
-
-* Python programming
-* Streamlit web development
-* Cybersecurity fundamentals
-* Phishing detection techniques
-* URL analysis methods
-* Regex pattern matching
-* Security-focused application development
+* Machine Learning
+* Cybersecurity Fundamentals
+* Phishing Detection
+* Threat Intelligence
+* Feature Engineering
+* REST API Integration
+* Streamlit Application Development
+* Random Forest Classification
+* Security Header Implementation
 
 ---
 
-## 👨‍💻 Author
+# 🚀 Future Improvements
+
+* Larger phishing dataset
+* XGBoost and LightGBM models
+* Deep Learning (LSTM)
+* URL entropy analysis
+* WHOIS domain age analysis
+* SSL certificate validation
+* Domain reputation scoring
+* URL screenshot analysis
+* Email phishing detection
+* PDF phishing detection
+* QR code phishing detection
+* SHAP-based AI explainability
+* User authentication
+* Scan history database
+* Export reports in PDF and CSV formats
+
+---
+
+# ⚠️ Limitations
+
+* Current ML model is trained on a small demonstration dataset.
+* Detection primarily relies on structural URL features.
+* VirusTotal results depend on prior submissions to its platform.
+* Advanced phishing techniques may require additional content and behavioral analysis.
+
+---
+
+# 👨‍💻 Author
 
 **B.V.K. Koushik**
 
-Cybersecurity Enthusiast | SOC Analyst Aspirant | AI & Data Science Student
+B.Tech – Artificial Intelligence & Data Science
+
+Cybersecurity Enthusiast | SOC Analyst Aspirant | Machine Learning Developer
 
 ---
 
-## 📜 License
+# 📄 License
 
 This project is licensed under the MIT License.
 
-Feel free to use, modify, and enhance the project for educational and research purposes.
+You are free to use, modify, and distribute this project for educational and research purposes.
+
+---
+
+# ⭐ Acknowledgements
+
+Special thanks to:
+
+* Streamlit
+* Scikit-learn
+* Pandas
+* VirusTotal
+* Python Community
+
+for providing the open-source tools and APIs that made this project possible.

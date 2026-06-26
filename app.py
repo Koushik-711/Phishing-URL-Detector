@@ -113,41 +113,39 @@ if st.button("Launch Advanced Hybrid Scan"):
     else:
         col1, col2 = st.columns(2)
         
+        features_df = extract_features(url_input)
+        
+        score = 0.0
+        if "openai.com" in url_input.lower() or "google.com" in url_input.lower():
+            score = 0.0
+        else:
+            if features_df['has_keywords'].values[0] == 1: score += 45.0
+            if features_df['is_ip'].values[0] == 1: score += 35.0
+            if features_df['qty_dot'].values[0] > 2: score += 10.0 * (features_df['qty_dot'].values[0] - 2)
+            if features_df['url_length'].values[0] > 75: score += 15.0
+            if features_df['qty_hyphen'].values[0] > 1: score += 10.0
+        
+        risk_probability = min(max(score, 0.0), 100.0)
+        is_ai_suspicious = risk_probability >= 50.0
+
         with col1:
             st.markdown("### 🧠 Local AI Verdict")
-            try:
-                features_df = extract_features(url_input)
-                
-                score = 0.0
-                if "openai.com" in url_input.lower() or "google.com" in url_input.lower():
-                    score = 0.0
-                else:
-                    if features_df['has_keywords'].values[0] == 1: score += 45.0
-                    if features_df['is_ip'].values[0] == 1: score += 35.0
-                    if features_df['qty_dot'].values[0] > 2: score += 10.0 * (features_df['qty_dot'].values[0] - 2)
-                    if features_df['url_length'].values[0] > 75: score += 15.0
-                    if features_df['qty_hyphen'].values[0] > 1: score += 10.0
-                
-                risk_probability = min(max(score, 0.0), 100.0)
-                
-                if risk_probability >= 50.0:
-                    st.markdown(
-                        f"""<div style='background-color:#3b1111; padding:20px; border-radius:8px; border-left: 6px solid #ff4b4b;'>
-                        <h4 style='color:#ff4b4b; margin:0;'>🚨 FLAGGED SUSPICIOUS</h4>
-                        <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
-                        </div>""", 
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        f"""<div style='background-color:#112e1a; padding:20px; border-radius:8px; border-left: 6px solid #24a148;'>
-                        <h4 style='color:#24a148; margin:0;'>✅ STRUCTURALLY CLEAN</h4>
-                        <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
-                        </div>""", 
-                        unsafe_allow_html=True
-                    )
-            except Exception as e:
-                st.error(f"❌ Structural feature inference processing failure: {str(e)}")
+            if is_ai_suspicious:
+                st.markdown(
+                    f"""<div style='background-color:#3b1111; padding:20px; border-radius:8px; border-left: 6px solid #ff4b4b;'>
+                    <h4 style='color:#ff4b4b; margin:0;'>🚨 FLAGGED SUSPICIOUS</h4>
+                    <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f"""<div style='background-color:#112e1a; padding:20px; border-radius:8px; border-left: 6px solid #24a148;'>
+                    <h4 style='color:#24a148; margin:0;'>✅ STRUCTURALLY CLEAN</h4>
+                    <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
 
         with col2:
             st.markdown("### 🌐 Global Threat Intel")
@@ -159,7 +157,6 @@ if st.button("Launch Advanced Hybrid Scan"):
                     """<div style='background-color:#1c2d3d; padding:20px; border-radius:8px; border-left: 6px solid #388bfd;'>
                     <h4 style='color:#388bfd; margin:0;'>ℹ️ STATUS INFO</h4>
                     <p style='color:white; margin:10px 0 0 0;'>Not Configured in Secrets Vault.</p>
-                    <p style='color:#8b949e; font-size:13px; margin:5px 0 0 0;'>(Verify your Streamlit cloud environment configuration panel variables setup dashboard parameters)</p>
                     </div>""", 
                     unsafe_allow_html=True
                 )
@@ -173,11 +170,19 @@ if st.button("Launch Advanced Hybrid Scan"):
                         </div>""", 
                         unsafe_allow_html=True
                     )
+                elif is_ai_suspicious:
+                    st.markdown(
+                        f"""<div style='background-color:#3b2a11; padding:20px; border-radius:8px; border-left: 6px solid #f1e05a;'>
+                        <h4 style='color:#f1e05a; margin:0;'>⚠️ UNINDEXED SUSPICIOUS</h4>
+                        <p style='color:white; margin:10px 0 0 0;'>0 global matches, but flagged locally as a <b>Zero-Day Phishing risk vector</b>.</p>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
                 else:
                     st.markdown(
                         f"""<div style='background-color:#112e1a; padding:20px; border-radius:8px; border-left: 6px solid #24a148;'>
                         <h4 style='color:#24a148; margin:0;'>✅ VERIFIED SAFE</h4>
-                        <p style='color:white; margin:10px 0 0 0;'>0 engines flagged this asset out of {vt_result['harmless'] + vt_result['suspicious'] + 1} checks.</p>
+                        <p style='color:white; margin:10px 0 0 0;'>0 engines flagged this asset out of global threat database records.</p>
                         </div>""", 
                         unsafe_allow_html=True
                     )

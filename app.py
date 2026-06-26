@@ -1,132 +1,202 @@
 import streamlit as st
-import re
-from urllib.parse import urlparse
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+import numpy as np
+import pickle
 import requests
 import base64
+import time
+import re
+from urllib.parse import urlparse
 
-st.markdown(
-    """
-    <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-    """,
-    unsafe_allow_html=True
+st.set_page_config(
+    page_title="PhishGuard Pro",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-try:
-    VT_API_KEY = st.secrets["VT_API_KEY"]
-except Exception:
-    VT_API_KEY = None
-
-@st.cache_resource
-def train_ai_model():
-    data = {
-        'has_ip':        [0, 1, 0, 1, 0, 0, 0, 1, 0, 0],
-        'long_url':      [0, 1, 1, 1, 0, 0, 1, 0, 0, 1],
-        'has_at':        [0, 0, 1, 0, 0, 0, 1, 1, 0, 0],
-        'too_many_dots': [0, 1, 0, 1, 0, 1, 1, 0, 0, 1],
-        'has_keyword':   [0, 1, 1, 1, 0, 0, 1, 1, 0, 1],
-        'label':         [0, 1, 1, 1, 0, 0, 1, 1, 0, 1]
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    h1, h2, h3 { color: #ffffff; }
+    div.stButton > button:first-child {
+        background-color: #1f6feb;
+        color: white;
+        border-radius: 6px;
+        border: none;
+        padding: 0.5rem 1.5rem;
+        font-weight: bold;
     }
-    df = pd.DataFrame(data)
-    X = df.drop('label', axis=1)
-    y = df['label']
-    model = RandomForestClassifier(n_estimators=10, random_state=42)
-    model.fit(X, y)
-    return model
-
-ai_classifier = train_ai_model()
-
-def check_virustotal(url):
-    if not VT_API_KEY or VT_API_KEY == "YOUR_API_KEY_HERE":
-        return "Not Configured in Secrets"
-        
-    try:
-        url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
-        api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-        
-        headers = {
-            "accept": "application/json",
-            "x-apikey": VT_API_KEY
-        }
-        
-        response = requests.get(api_url, headers=headers)
-        
-        if response.status_code == 200:
-            result = response.json()
-            stats = result['data']['attributes']['last_analysis_stats']
-            malicious_count = stats.get('malicious', 0)
-            return malicious_count
-        elif response.status_code == 404:
-            return "Unscanned (New URL Target)"
-        else:
-            return f"API Error (Status Code: {response.status_code})"
-    except Exception:
-        return "Network Connection Timeout"
-
-def extract_features(url):
-    ip_pattern = r'(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])'
-    features = {
-        'has_ip': 1 if re.search(ip_pattern, url) else 0,
-        'long_url': 1 if len(url) > 75 else 0,
-        'has_at': 1 if "@" in url else 0,
-        'too_many_dots': 1 if urlparse(url).netloc.count('.') > 2 else 0
+    div.stButton > button:first-child:hover {
+        background-color: #388bfd;
     }
-    keywords = ['secure', 'account', 'webscr', 'login', 'ebayisapi', 'signin', 'banking', 'confirm']
-    features['has_keyword'] = 1 if any(word in url.lower() for word in keywords) else 0
-    return features
-
-st.set_page_config(page_title="PhishGuard Pro", page_icon="🛡️", layout="centered")
+    </style>
+""", unsafe_allow_html=True)
 
 st.title("🛡️ PhishGuard Pro")
 st.subheader("Hybrid AI & Global Threat Intel Platform")
-st.write("An enterprise-grade utility combining localized Machine Learning predictions with decentralized threat landscape feeds.")
+st.markdown("An enterprise-grade utility combining localized Machine Learning predictions with decentralized threat landscape feeds.")
 
-user_url = st.text_input("Enter URL vector to scan:", placeholder="https://secure-banking-update.net/login")
+def extract_features(url):
+    features = {}
+    if not url.startswith(('http://', 'https://')):
+        url = 'http://' + url
+        
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc
+    path = parsed_url.path
+    
+    features['url_length'] = len(url)
+    features['domain_length'] = len(domain)
+    
+    phish_keywords = ['paypal', 'login', 'signin', 'bank', 'secure', 'account', 'verify', 'update']
+    features['has_keywords'] = 1 if any(kw in url.lower() for kw in phish_keywords) else 0
+    
+    features['qty_dot'] = url.count('.')
+    features['qty_hyphen'] = url.count('-')
+    features['qty_slash'] = url.count('/')
+    features['qty_question'] = url.count('?')
+    features['qty_equal'] = url.count('=')
+    
+    ip_pattern = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+    features['is_ip'] = 1 if ip_pattern.match(domain) else 0
+    
+    return pd.DataFrame([features])
+
+def analyze_url_global(url_to_scan, api_key):
+    if not api_key:
+        return {"status": "NOT_CONFIGURED"}
+        
+    headers = {
+        "accept": "application/json",
+        "x-apikey": api_key
+    }
+    
+    url_id = base64.urlsafe_b64encode(url_to_scan.encode()).decode().strip("=")
+    report_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
+    
+    try:
+        response = requests.get(report_url, headers=headers)
+        
+        if response.status_code == 200:
+            result_data = response.json()
+            stats = result_data["data"]["attributes"]["last_analysis_stats"]
+            return {
+                "status": "SUCCESS",
+                "malicious": stats.get("malicious", 0),
+                "harmless": stats.get("harmless", 0),
+                "suspicious": stats.get("suspicious", 0)
+            }
+            
+        elif response.status_code == 404:
+            submit_url = "https://www.virustotal.com/api/v3/urls"
+            payload = {"url": url_to_scan}
+            submit_response = requests.post(submit_url, headers=headers, data=payload)
+            
+            if submit_response.status_code == 200:
+                return {
+                    "status": "QUEUED",
+                    "message": "First-time URL detected! Dispatched to live analysis engines. Please re-scan in 15 seconds."
+                }
+            return {"status": "ERROR", "message": "Failed to submit new domain asset to scan grid."}
+            
+        else:
+            return {"status": "ERROR", "message": f"API Gateway response code: {response.status_code}"}
+            
+    except Exception as e:
+        return {"status": "ERROR", "message": f"Connection Failure: {str(e)}"}
+
+VT_API_KEY = st.secrets.get("VT_API_KEY", None)
+url_input = st.text_input("Enter URL vector to scan:", placeholder="https://example.com")
 
 if st.button("Launch Advanced Hybrid Scan"):
-    if user_url:
-        cleaned_url = user_url.replace("—", "-").replace("’", "'").replace("”", '"').strip()
-        
-        if not cleaned_url.startswith(("http://", "https://")):
-            url_to_analyze = "http://" + cleaned_url
-        else:
-            url_to_analyze = cleaned_url
-            
+    if not url_input.strip():
+        st.warning("⚠️ Please provide a valid URL string parameter first.")
+    else:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 🤖 Local AI Verdict")
-            with st.spinner("Processing ML vectors..."):
-                features_dict = extract_features(url_to_analyze)
-                input_data = pd.DataFrame([features_dict])
-                probabilities = ai_classifier.predict_proba(input_data)[0]
-                phishing_probability = probabilities[1] * 100
+            st.markdown("### 🧠 Local AI Verdict")
+            try:
+                with open("phishing_model.pkl", "rb") as model_file:
+                    model = pickle.load(model_file)
                 
-            if phishing_probability >= 70:
-                st.error(f"🚨 CRITICAL RISK\n\nAI Probability: {phishing_probability:.1f}%")
-            elif phishing_probability >= 30:
-                st.warning(f"⚠️ SUSPICIOUS INDICATORS\n\nAI Probability: {phishing_probability:.1f}%")
-            else:
-                st.success(f"✅ STRUCTURALLY CLEAN\n\nAI Risk Score: {phishing_probability:.1f}%")
+                features_df = extract_features(url_input)
+                risk_probability = model.predict_proba(features_df)[0][1] * 100
                 
+                if risk_probability >= 50.0:
+                    st.markdown(
+                        f"""<div style='background-color:#3b1111; padding:20px; border-radius:8px; border-left: 6px solid #ff4b4b;'>
+                        <h4 style='color:#ff4b4b; margin:0;'>🚨 FLAGGED SUSPICIOUS</h4>
+                        <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        f"""<div style='background-color:#112e1a; padding:20px; border-radius:8px; border-left: 6px solid #24a148;'>
+                        <h4 style='color:#24a148; margin:0;'>✅ STRUCTURALLY CLEAN</h4>
+                        <p style='color:white; margin:10px 0 0 0; font-size:18px;'>AI Risk Score: <b>{risk_probability:.1f}%</b></p>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
+                    
+            except FileNotFoundError:
+                st.error("❌ Model weight initialization failure: 'phishing_model.pkl' matrix tracking architecture file not found.")
+            except Exception as e:
+                st.error(f"❌ Structural feature inference processing failure: {str(e)}")
+
         with col2:
             st.markdown("### 🌐 Global Threat Intel")
-            with st.spinner("Pinging VirusTotal server node..."):
-                vt_result = check_virustotal(url_to_analyze)
+            
+            vt_result = analyze_url_global(url_input, VT_API_KEY)
+            
+            if vt_result["status"] == "NOT_CONFIGURED":
+                st.markdown(
+                    """<div style='background-color:#1c2d3d; padding:20px; border-radius:8px; border-left: 6px solid #388bfd;'>
+                    <h4 style='color:#388bfd; margin:0;'>ℹ️ STATUS INFO</h4>
+                    <p style='color:white; margin:10px 0 0 0;'>Not Configured in Secrets Vault.</p>
+                    <p style='color:#8b949e; font-size:13px; margin:5px 0 0 0;'>(Verify your Streamlit cloud environment configuration panel variables setup dashboard parameters)</p>
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
                 
-            if isinstance(vt_result, int):
-                if vt_result > 0:
-                    st.error(f"🚨 POSITIVE DETECTIONS\n\n{vt_result} engines flagged this URL as malicious!")
+            elif vt_result["status"] == "SUCCESS":
+                if vt_result["malicious"] > 0:
+                    st.markdown(
+                        f"""<div style='background-color:#3b1111; padding:20px; border-radius:8px; border-left: 6px solid #ff4b4b;'>
+                        <h4 style='color:#ff4b4b; margin:0;'>🚨 THREAT DETECTED</h4>
+                        <p style='color:white; margin:10px 0 0 0;'>Flagged by <b>{vt_result['malicious']}</b> global cybersecurity scanning providers.</p>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
                 else:
-                    st.success("✅ GLOBAL CLEARANCE\n\n0/70+ security engines flagged this URL.")
-            else:
-                st.info(f"ℹ️ STATUS INFO\n\n{vt_result}\n\n(Verify your Streamlit Secrets Panel configuration)")
-                
-        with st.expander("View Integrated Forensic Log"):
-            st.write("Extracted mathematical feature mappings passed into Random Forest matrix:")
-            st.json(features_dict)
-    else:
-        st.info("Please provide a target domain path to run the evaluation metrics.")
+                    st.markdown(
+                        f"""<div style='background-color:#112e1a; padding:20px; border-radius:8px; border-left: 6px solid #24a148;'>
+                        <h4 style='color:#24a148; margin:0;'>✅ VERIFIED SAFE</h4>
+                        <p style='color:white; margin:10px 0 0 0;'>0 engines flagged this asset out of {vt_result['harmless'] + vt_result['suspicious'] + 1} checks.</p>
+                        </div>""", 
+                        unsafe_allow_html=True
+                    )
+                    
+            elif vt_result["status"] == "QUEUED":
+                st.markdown(
+                    f"""<div style='background-color:#1c2d3d; padding:20px; border-radius:8px; border-left: 6px solid #f1e05a;'>
+                    <h4 style='color:#f1e05a; margin:0;'>⏳ LIVE PROCESSING QUEUE</h4>
+                    <p style='color:white; margin:10px 0 0 0;'>{vt_result['message']}</p>
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
+                with st.spinner("Submitting core hash vectors to analyzer arrays..."):
+                    time.sleep(2)
+                    
+            elif vt_result["status"] == "ERROR":
+                st.warning(f"⚠️ Pipeline Endpoint Routing Alert: {vt_result['message']}")
+
+        with st.expander("📊 View Integrated Forensic Log"):
+            st.json({
+                "target_evaluated": url_input,
+                "timestamp_epoch": time.time(),
+                "extraction_features_mapped": features_df.to_dict(orient="records")[0] if 'features_df' in locals() else "Unavailable",
+                "api_pipeline_response_status": vt_result["status"]
+            })

@@ -93,10 +93,9 @@ def analyze_url_global(url_to_scan, api_key):
         "x-apikey": api_key
     }
     
-    # STRICT STANDARDIZATION: Standardize url formats to avoid base64 hash mismatches
     standardized_url = url_to_scan.strip().lower()
     if not standardized_url.startswith(('http://', 'https://')):
-        standardized_url = 'http://' + standardized_url
+        standardized_url = 'https://' + standardized_url
     if standardized_url.endswith('/'):
         standardized_url = standardized_url[:-1]
 
@@ -106,18 +105,23 @@ def analyze_url_global(url_to_scan, api_key):
     try:
         response = requests.get(report_url, headers=headers)
         
+        # Error check for rate limits (HTTP 429)
+        if response.status_code == 429:
+            return {"status": "RATE_LIMITED", "message": "API Limit reached! (Max 4 requests/min on free tier). Wait 60 seconds."}
+            
         if response.status_code == 200:
             result_data = response.json()
             stats = result_data["data"]["attributes"]["last_analysis_stats"]
+            
+            # Combine malicious and suspicious engines for stricter detection accuracy
+            total_threat_flags = stats.get("malicious", 0) + stats.get("suspicious", 0)
             return {
                 "status": "SUCCESS",
-                "malicious": stats.get("malicious", 0),
-                "harmless": stats.get("harmless", 0),
-                "suspicious": stats.get("suspicious", 0)
+                "malicious": total_threat_flags,
+                "harmless": stats.get("harmless", 0)
             }
             
         elif response.status_code == 404:
-            # Step B Fallback: Explicitly send an direct analysis scan POST request if lookups error out
             submit_url = "https://www.virustotal.com/api/v3/urls"
             payload = {"url": url_to_scan}
             submit_response = requests.post(submit_url, headers=headers, data=payload)
@@ -125,29 +129,27 @@ def analyze_url_global(url_to_scan, api_key):
             if submit_response.status_code == 200:
                 submit_data = submit_response.json()
                 analysis_id = submit_data["data"]["id"]
-                
-                # Fetch live scanning analysis response metrics directly to completely bypass database indexing latency
                 check_live_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
-                time.sleep(1.5) # Give the external infrastructure scanning pipeline brief compilation runtime window
+                time.sleep(2.0)
                 live_res = requests.get(check_live_url, headers=headers)
                 
                 if live_res.status_code == 200:
                     live_data = live_res.json()
                     live_stats = live_data["data"]["attributes"]["stats"]
+                    combined_live = live_stats.get("malicious", 0) + live_stats.get("suspicious", 0)
                     return {
                         "status": "SUCCESS",
-                        "malicious": live_stats.get("malicious", 0),
-                        "harmless": live_stats.get("harmless", 0),
-                        "suspicious": live_stats.get("suspicious", 0)
+                        "malicious": combined_live,
+                        "harmless": live_stats.get("harmless", 0)
                     }
                 
                 return {
                     "status": "QUEUED",
-                    "message": "First-time public target string registered to live submission queue. Re-scan in 15s."
+                    "message": "First-time URL submitted to live scanning array engines. Re-scan in 15 seconds."
                 }
             return {"status": "ERROR", "message": "Failed to submit new domain asset to scan grid."}
         else:
-            return {"status": "ERROR", "message": f"API Gateway response code: {response.status_code}"}
+            return {"status": "ERROR", "message": f"API Error Code: {response.status_code}"}
     except Exception as e:
         return {"status": "ERROR", "message": f"Connection Failure: {str(e)}"}
 
@@ -209,12 +211,20 @@ if st.button("Launch Advanced Hybrid Scan"):
                     </div>""", 
                     unsafe_allow_html=True
                 )
+            elif vt_result["status"] == "RATE_LIMITED":
+                st.markdown(
+                    f"""<div style='background-color:#3b2a11; padding:20px; border-radius:8px; border-left: 6px solid #f1e05a;'>
+                    <h4 style='color:#f1e05a; margin:0;'>🛑 RATE LIMIT EXCEEDED</h4>
+                    <p style='color:white; margin:10px 0 0 0;'>{vt_result['message']}</p>
+                    </div>""", 
+                    unsafe_allow_html=True
+                )
             elif vt_result["status"] == "SUCCESS":
                 if vt_result["malicious"] > 0:
                     st.markdown(
                         f"""<div style='background-color:#3b1111; padding:20px; border-radius:8px; border-left: 6px solid #ff4b4b;'>
                         <h4 style='color:#ff4b4b; margin:0;'>🚨 THREAT DETECTED</h4>
-                        <p style='color:white; margin:10px 0 0 0;'>Flagged by <b>{vt_result['malicious']}</b> global cybersecurity scanning providers.</p>
+                        <p style='color:white; margin:10px 0 0 0;'>Flagged by <b>{vt_result['malicious']}</b> global cybersecurity scanning engines.</p>
                         </div>""", 
                         unsafe_allow_html=True
                     )
@@ -222,7 +232,7 @@ if st.button("Launch Advanced Hybrid Scan"):
                     st.markdown(
                         f"""<div style='background-color:#3b2a11; padding:20px; border-radius:8px; border-left: 6px solid #f1e05a;'>
                         <h4 style='color:#f1e05a; margin:0;'>⚠️ Zero-Day Vector Attack Risk</h4>
-                        <p style='color:white; margin:10px 0 0 0;'>0 global matches found, but localized models override database due to critical structural vulnerability signatures.</p>
+                        <p style='color:white; margin:10px 0 0 0;'>0 global database matches, but localized ensemble overrides records due to critical structural vulnerability signatures.</p>
                         </div>""", 
                         unsafe_allow_html=True
                     )

@@ -39,7 +39,7 @@ st.markdown("An enterprise-grade public utility aggregating tree-boosting, seque
 def extract_features(url):
     features = {}
     if not url.startswith(('http://', 'https://')):
-        url = 'http://' + url
+        url = 'https://' + url
         
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
@@ -93,11 +93,19 @@ def analyze_url_global(url_to_scan, api_key):
         "x-apikey": api_key
     }
     
-    url_id = base64.urlsafe_b64encode(url_to_scan.encode()).decode().strip("=")
+    # STRICT STANDARDIZATION: Standardize url formats to avoid base64 hash mismatches
+    standardized_url = url_to_scan.strip().lower()
+    if not standardized_url.startswith(('http://', 'https://')):
+        standardized_url = 'http://' + standardized_url
+    if standardized_url.endswith('/'):
+        standardized_url = standardized_url[:-1]
+
+    url_id = base64.urlsafe_b64encode(standardized_url.encode()).decode().strip("=")
     report_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
     
     try:
         response = requests.get(report_url, headers=headers)
+        
         if response.status_code == 200:
             result_data = response.json()
             stats = result_data["data"]["attributes"]["last_analysis_stats"]
@@ -107,11 +115,32 @@ def analyze_url_global(url_to_scan, api_key):
                 "harmless": stats.get("harmless", 0),
                 "suspicious": stats.get("suspicious", 0)
             }
+            
         elif response.status_code == 404:
+            # Step B Fallback: Explicitly send an direct analysis scan POST request if lookups error out
             submit_url = "https://www.virustotal.com/api/v3/urls"
             payload = {"url": url_to_scan}
             submit_response = requests.post(submit_url, headers=headers, data=payload)
+            
             if submit_response.status_code == 200:
+                submit_data = submit_response.json()
+                analysis_id = submit_data["data"]["id"]
+                
+                # Fetch live scanning analysis response metrics directly to completely bypass database indexing latency
+                check_live_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
+                time.sleep(1.5) # Give the external infrastructure scanning pipeline brief compilation runtime window
+                live_res = requests.get(check_live_url, headers=headers)
+                
+                if live_res.status_code == 200:
+                    live_data = live_res.json()
+                    live_stats = live_data["data"]["attributes"]["stats"]
+                    return {
+                        "status": "SUCCESS",
+                        "malicious": live_stats.get("malicious", 0),
+                        "harmless": live_stats.get("harmless", 0),
+                        "suspicious": live_stats.get("suspicious", 0)
+                    }
+                
                 return {
                     "status": "QUEUED",
                     "message": "First-time public target string registered to live submission queue. Re-scan in 15s."
